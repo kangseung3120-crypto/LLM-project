@@ -1,0 +1,207 @@
+'use client';
+import { useState, useRef, useEffect } from 'react';
+import ResultView from '@/components/ResultView';
+import SharePanel from '@/components/SharePanel';
+import ResultLoading from '@/components/ResultLoading';
+import PersonFields, { mbtiFrom } from '@/components/PersonFields';
+import { Analysis, api } from '@/lib/api';
+import { QUESTION_MAX } from '@/lib/spicy';
+export default function Test() {
+  const [analysis, setAnalysis] = useState<Analysis | null>(null),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState('');
+  const resultTop = useRef<HTMLDivElement>(null);
+  const lock = useRef(false);
+  const loadingTop = useRef<HTMLDivElement>(null);
+  const errorTop = useRef<HTMLParagraphElement>(null);
+  const [checking, setChecking] = useState(true);
+  useEffect(() => {
+    if (busy) {
+      loadingTop.current?.focus();
+      loadingTop.current?.scrollIntoView({ behavior: 'instant' });
+    } else if (error) {
+      errorTop.current?.focus();
+      errorTop.current?.scrollIntoView({ behavior: 'instant' });
+    }
+  }, [busy, error]);
+  const [ready, setReady] = useState(false);
+  const [verification, setVerification] = useState(false);
+  const [operation, setOperation] = useState<'demo' | 'analysis'>('demo');
+  const autoDemo = useRef(false);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('demo') === '1' && !autoDemo.current) {
+      autoDemo.current = true;
+      void demo();
+    }
+  }, []);
+  useEffect(() => {
+    api<{
+      analysis_ready: boolean;
+      verification_mode: boolean;
+    }>('health')
+      .then((h) => {
+        setReady(h.analysis_ready);
+        setVerification(h.verification_mode);
+      })
+      .catch(() => setReady(false))
+      .finally(() => setChecking(false));
+  }, []);
+  function showResult(value: Analysis) {
+    setAnalysis(value);
+    setTimeout(() => {
+      resultTop.current?.focus();
+      resultTop.current?.scrollIntoView({ behavior: 'instant' });
+    }, 0);
+  }
+  async function demo() {
+    if (lock.current) return;
+    setOperation('demo');
+    lock.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      showResult(await api<Analysis>('demo-analysis', { method: 'POST', body: '{}' }));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      lock.current = false;
+      setBusy(false);
+    }
+  }
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (lock.current) return;
+    const values = new FormData(e.currentTarget);
+    if (!ready) {
+      setError('실제 분석은 준비 중이에요. 예시 결과를 먼저 살펴보세요.');
+      return;
+    }
+    setOperation('analysis');
+    lock.current = true;
+    setBusy(true);
+    setError('');
+    const f = values;
+    const person = (id: string) => ({
+      gender: f.get(id + 'gender'),
+      birth_date: f.get(id + 'date'),
+      birth_time: f.get(id + 'unknown') ? null : f.get(id + 'time'),
+      mbti: mbtiFrom(f, id),
+    });
+    const question = String(f.get('question') || '').trim();
+    try {
+      showResult(
+        await api<Analysis>('analyses', {
+          method: 'POST',
+          body: JSON.stringify({
+            person_a: person('a'),
+            person_b: person('b'),
+            external_processing_consent: f.get('consent') === 'on',
+            question: question || null,
+            // Spicy questions are always answered; the spicy cards stay behind the result gate.
+            adult_confirmed: true,
+          }),
+        }),
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+      lock.current = false;
+    }
+  }
+  return (
+    <main id="main" className="form-main">
+      {verification && (
+        <aside className="notice">
+          <strong>모의 API 검증 모드</strong>
+          <p>실제 OpenAI 응답이 아닙니다. 연결 흐름만 검증합니다.</p>
+        </aside>
+      )}
+      {busy && (
+        <div ref={loadingTop} tabIndex={-1}>
+          <ResultLoading demo={operation === 'demo'} />
+        </div>
+      )}
+      {analysis && !busy && (
+        <>
+          <div tabIndex={-1} ref={resultTop}>
+            <ResultView result={analysis.result} answer={analysis.answer} />
+          </div>
+          <SharePanel analysis={analysis} />
+          <button
+            className="text-button"
+            onClick={() => {
+              setAnalysis(null);
+              setError('');
+            }}
+          >
+            ← 입력으로 돌아가기
+          </button>
+        </>
+      )}
+      <div hidden={!!analysis || busy} className="atlas-form">
+        <div className="form-intro">
+          <p className="eyebrow">우리 사이 알아보기</p>
+          <h1>
+            두 사람의 이야기를
+            <br />
+            시작해 볼까요?
+          </h1>
+          <p>두 사람의 정보를 한 화면에 적어 주세요. 입력한 정보는 서비스 DB에 저장하지 않아요.</p>
+        </div>
+        <form onSubmit={submit} aria-busy={busy} className="pair-form">
+          <p className="small-note">
+            양력·한국 표준시 기준이에요. 태어난 시각을 모르면 ‘몰라요’를 선택해 주세요.
+          </p>
+          <div className="people">
+            <PersonFields id="a" gender="male" />
+            <PersonFields id="b" gender="female" />
+          </div>
+          <div className="question">
+            <label htmlFor="question">
+              궁금한 점 <small>선택 · {QUESTION_MAX}자</small>
+            </label>
+            <input
+              id="question"
+              name="question"
+              type="text"
+              maxLength={QUESTION_MAX}
+              placeholder="예: 싸우면 누가 먼저 사과해?"
+              aria-describedby="question-hint"
+              autoComplete="off"
+            />
+            <p id="question-hint" className="field-hint">
+              결과에 짧은 답을 붙여 줘요. 질문은 공유 링크에 담기지 않아요.
+            </p>
+          </div>
+          <label className="check consent">
+            <input type="checkbox" name="consent" required />
+            {ready
+              ? '두 사람의 입력 동의를 받았고, 사주 계산 결과와 MBTI(궁금한 점을 적었다면 그 문장도)를 OpenAI로 보내 참고·오락용 해석을 만드는 데 동의해요. 생년월일·시각 원문은 보내지 않아요.'
+              : '두 사람의 입력 동의를 받았고, 참고·오락용 해석임을 이해했어요.'}
+          </label>
+          <div className="form-actions">
+            <button className="button primary" disabled={busy || !ready} type="submit">
+              {busy ? '두 사람의 관계를 살펴보는 중…' : '우리 궁합 알아보기'}
+            </button>
+          </div>
+          <p className="small-note">
+            {checking
+              ? '분석 서비스를 확인하고 있어요.'
+              : ready
+                ? '요청이 몰리면 잠시 대기해요. 분석에 최대 2분 정도 걸릴 수 있어요.'
+                : '실제 분석은 아직 준비 중이에요. 준비되면 이용할 수 있어요.'}
+          </p>
+        </form>
+      </div>
+      <p className="error" role="alert" ref={errorTop} tabIndex={-1}>
+        {error}
+      </p>
+      {error && !analysis && (
+        <button className="button secondary wide" disabled={busy} onClick={demo}>
+          예시 결과 보기 →
+        </button>
+      )}
+    </main>
+  );
+}

@@ -1,0 +1,555 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "러브코드 로컬 MVP",
+    "version": "0.2.0"
+  },
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "summary": "Health",
+        "operationId": "health_api_v1_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/taxonomy": {
+      "get": {
+        "summary": "Taxonomy",
+        "operationId": "taxonomy_api_v1_taxonomy_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analyses": {
+      "post": {
+        "summary": "Analyse",
+        "operationId": "analyse_api_v1_analyses_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalysisInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/demo-analysis": {
+      "post": {
+        "summary": "Demo",
+        "operationId": "demo_api_v1_demo_analysis_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Strict"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shared": {
+      "get": {
+        "summary": "Shared",
+        "operationId": "shared_api_v1_shared_get",
+        "parameters": [
+          {
+            "name": "x-share-code",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 6023,
+              "default": "",
+              "title": "X-Share-Code"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_SHARE_LINK: 변조·잘림·다른 키로 서명된 링크"
+          },
+          "503": {
+            "description": "SHARE_UNAVAILABLE: LC_SHARE_SECRET 미설정"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AnalysisInput": {
+        "properties": {
+          "external_processing_consent": {
+            "type": "boolean",
+            "title": "External Processing Consent",
+            "default": false
+          },
+          "person_a": {
+            "$ref": "#/components/schemas/Person"
+          },
+          "person_b": {
+            "$ref": "#/components/schemas/Person"
+          },
+          "question": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Question"
+          },
+          "adult_confirmed": {
+            "type": "boolean",
+            "title": "Adult Confirmed",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "person_a",
+          "person_b"
+        ],
+        "title": "AnalysisInput"
+      },
+      "AnalysisResponse": {
+        "properties": {
+          "analysis_id": {
+            "type": "string",
+            "title": "Analysis Id"
+          },
+          "result": {
+            "$ref": "#/components/schemas/PublicResult"
+          },
+          "answer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Answer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "share_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Share Code"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "analysis_id",
+          "result"
+        ],
+        "title": "AnalysisResponse"
+      },
+      "Answer": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Question"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "answered",
+              "declined_offtopic",
+              "declined_adult"
+            ],
+            "title": "Status"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "question",
+          "status",
+          "text"
+        ],
+        "title": "Answer",
+        "description": "Reply to AnalysisInput.question. Lives outside PublicResult so it never enters a link."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "Person": {
+        "properties": {
+          "gender": {
+            "type": "string",
+            "enum": [
+              "male",
+              "female",
+              "unspecified"
+            ],
+            "title": "Gender"
+          },
+          "birth_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Birth Date"
+          },
+          "birth_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Birth Time"
+          },
+          "mbti": {
+            "type": "string",
+            "title": "Mbti"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "gender",
+          "birth_date",
+          "birth_time",
+          "mbti"
+        ],
+        "title": "Person"
+      },
+      "PublicResult": {
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "enum": [
+              "1.0",
+              "1.1"
+            ],
+            "title": "Schema Version",
+            "default": "1.0"
+          },
+          "type_id": {
+            "type": "string",
+            "title": "Type Id"
+          },
+          "taxonomy_version": {
+            "type": "string",
+            "const": "love-code-v1",
+            "title": "Taxonomy Version",
+            "default": "love-code-v1"
+          },
+          "axes": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Axes"
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Summary"
+          },
+          "strengths": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Strengths"
+          },
+          "adjustments": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Adjustments"
+          },
+          "conversation_tip": {
+            "type": "string",
+            "maxLength": 180,
+            "minLength": 1,
+            "title": "Conversation Tip"
+          },
+          "limitations": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "missing_hour_a",
+                "missing_hour_b",
+                "boundary_time_unknown_a",
+                "boundary_time_unknown_b"
+              ]
+            },
+            "type": "array",
+            "title": "Limitations",
+            "default": []
+          },
+          "disclaimer_version": {
+            "type": "string",
+            "const": "entertainment-v1",
+            "title": "Disclaimer Version",
+            "default": "entertainment-v1"
+          },
+          "evidence_status": {
+            "type": "string",
+            "enum": [
+              "fixture",
+              "ai_draft_unreviewed"
+            ],
+            "title": "Evidence Status"
+          },
+          "spicy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SpicyResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type_id",
+          "axes",
+          "summary",
+          "strengths",
+          "adjustments",
+          "conversation_tip",
+          "evidence_status"
+        ],
+        "title": "PublicResult"
+      },
+      "SharedResult": {
+        "properties": {
+          "result": {
+            "$ref": "#/components/schemas/PublicResult"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "result",
+          "created_at"
+        ],
+        "title": "SharedResult"
+      },
+      "SpicyResult": {
+        "properties": {
+          "titles": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SpicyTitle"
+            },
+            "type": "object",
+            "title": "Titles"
+          },
+          "notes": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Notes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "titles",
+          "notes"
+        ],
+        "title": "SpicyResult",
+        "description": "Rule-picked title + LLM note per topic. Topic words are allowed here, explicit,\nprofane, numeric-odds and certainty wording is not (lovecode.spicy.spicy_text_ok)."
+      },
+      "SpicyTitle": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "text"
+        ],
+        "title": "SpicyTitle"
+      },
+      "Strict": {
+        "properties": {},
+        "additionalProperties": false,
+        "type": "object",
+        "title": "Strict"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}
